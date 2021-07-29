@@ -1,0 +1,1368 @@
+---
+title: "Veri Madenciliği Final"
+author: "Yasemin Hızarcı 121516005"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: False
+---
+
+<style type="text/css">
+body.td {
+  font-size: 11pt;
+  font-weight:bold;
+}
+code.r{
+font-weight:bold;
+}
+pre {
+font-weight:bold;
+}
+h1.title {
+color:#66023C;
+font-size:24pt;
+font-weight:600;
+}
+h1 {
+color:#66023C;
+font-size:20pt;
+font-weight:600;
+}
+h2 {
+color:maroon;
+font-size:18pt;
+font-weight:600;
+}
+h3 {
+color:maroon;
+font-size:14pt;
+font-weight:600;
+}
+
+</style>
+
+```{css,echo=FALSE}
+.watch-out {
+  background-color:plum;
+ 
+  font-weight: bold;
+}
+.watch-out1 {
+  background-color:paleturquoise;
+  font-weight: bold;
+}
+
+
+```
+
+
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(class.source="watch-out",class.output="watch-out1")
+```
+
+```{r echo=FALSE, fig.align='center', out.width='140%'}
+knitr::include_graphics('C:/Users/yasem/OneDrive/Masaüstü/machine.jpeg')
+
+```
+
+# 1.SORU
+
+
+## Verinin Tanıtılması:
+
+
+Fetüs'ün sağlık durumu ile ilgili veri setidir.
+
+
+**1)** <span style='color:maroon'>**baseline value:** *Temel Fetal Kalp Hızı (FHR)*
+
+**2)** <span style='color:maroon'>**accelerations:** *Saniyedeki hızlanma sayısı*
+
+**3)** <span style='color:maroon'>**fetal_movement:** *Saniyedeki fetal hareket sayısı*
+
+**4)** <span style='color:maroon'>**uterine_contractions:** *Saniyedeki uterus kasılma sayısı*
+
+**5)** <span style='color:maroon'>**light_decelerations:** *Saniyedeki LD sayısı*
+
+**6)** <span style='color:maroon'>**severe_decelerations:** *Saniyedeki SD sayısı*
+
+**7)** <span style='color:maroon'>**prolongued_decelerations:** *Saniyedeki PD sayısı*
+
+**8)** <span style='color:maroon'>**abnormal_short_term_variability:** *Anormal kısa vadeli değişkenliğin olduğu zaman yüzdesi*
+
+**9)** <span style='color:maroon'>**mean_value_of_short_term_variability:** *Kısa vadeli değişkenliğin ortalama değeri*
+
+**10)** <span style='color:maroon'>**percent_of_time_with_abnormal_long_term_variability:** *Anormal uzun vadeli değişkenliğin olduğu zaman yüzdesi*
+
+**11)** <span style='color:maroon'>**mean_value_of_long_term_variability:** *Uzun vadeli değişkenliğin ortalama değeri*
+
+**12)** <span style='color:maroon'>**histogram_width:** *Bir kayıttaki tüm değerler kullanılarak yapılan histogramın genişliği*
+
+**13)** <span style='color:maroon'>**histogram_min:** *Histogram minimum değeri*
+
+**14)** <span style='color:maroon'>**histogram_max:** *Histogram maksimum değeri*
+
+**15)** <span style='color:maroon'>**histogram_number_of_peaks:** *Histogramdaki pik sayısı*
+
+**16)** <span style='color:maroon'>**histogram_number_of_zeroes:** *Histogramdaki sıfır sayısı*
+
+**17)** <span style='color:maroon'>**histogram_mode:** *Hist modu*
+
+**18)** <span style='color:maroon'>**histogram_mean:** *Hist anlamı*
+
+**19)** <span style='color:maroon'>**histogram_median:** *Hist Medyan*
+
+**20)** <span style='color:maroon'>**histogram_variance:** *Hist varyansı*
+
+**21)** <span style='color:maroon'>**histogram_tendency:** *Histogram eğilimi*
+
+**22)** <span style='color:maroon'>**fetal_health(Fetal sağlık):** *1 - Normal , 0- Patolojik*
+
+
+<span style='color:maroon'>**Bağımlı değişken=fetal_health(Fetal sağlık): 1 - Normal, 0 - Patolojik**
+
+
+
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(e1071)
+library(caret)
+library(tree)
+library(InformationValue)
+library(ROCR)
+library(dplyr)
+library(randomForest)
+library(gbm)
+library(DataExplorer)
+library(Amelia)
+library(ggplot2)
+library(cluster)
+library(purrr)
+library(factoextra)
+library(rpart)
+library(rpart.plot)
+```
+
+
+
+```{r}
+fetal<-read.csv(file='C:/Users/yasem/OneDrive/Masaüstü/fetaldata.csv',
+header=TRUE,sep=",")
+dim(fetal)
+```
+
+```{r echo=FALSE}
+missmap(fetal,col=c("indianred3","steelblue3"),main="Değişkenlerde Eksik Gözlem Var Mı?",
+       x.cex=0.7,y.cex=0.3)
+```
+
+Veride eksik gözlem yoktur.
+
+```{r}
+fetal=fetal%>% mutate(fetal_health= case_when(fetal_health==1~"normal",
+fetal_health==0~"hasta"))
+
+```
+
+
+
+```{r}
+fetal$histogram_tendency=as.factor(fetal$histogram_tendency)
+fetal$fetal_health=as.factor(fetal$fetal_health)
+str(fetal)
+```
+
+
+```{r}
+table(fetal$fetal_health)
+```
+
+veride bağımlı değişken için düzensizlik vardır.Bu nedenle veriyi yeniden oluşturup daha sonra test ve train olarak ayırmak istiyorum.
+
+```{r message=FALSE, warning=FALSE}
+attach(fetal)
+health_normal <- fetal[which(fetal$fetal_health == "normal"), ]  
+health_hasta <- fetal[which(fetal$fetal_health == "hasta"), ] 
+set.seed(300)
+normal<- sample(1:nrow(health_normal), 150) 
+hasta <- sample(1:nrow(health_hasta), 150)
+normal <- health_normal[normal, ]  
+hasta<- health_hasta[hasta, ]
+yeniveri <- rbind(normal, hasta)
+table(yeniveri$fetal_health)
+
+```
+
+## Test ve Train
+
+Şimdi bu veri üzerinden test ve train setimizi oluşturalım ve klasik sınıflandırma karar ağacı uygulaması yapalım.
+
+
+```{r}
+set.seed(300)
+train=sample(1:nrow(yeniveri), 225) #%75 train
+fetal.test=yeniveri[-train,] #%25 test
+health.test=yeniveri$fetal_health[-train]  #yanıt değişkeni test
+
+```
+
+
+#### {.tabset .tabset-pills}  
+##### Train setinde bağımlı değişken
+
+
+```{r echo=FALSE}
+library(ggplot2)
+ggplot(yeniveri[train,], aes(x=fetal_health))+
+  geom_bar(stat="count", width=0.7, fill="steelblue")+
+  theme_minimal()
+```
+
+
+##### Test setinde bağımlı değişken
+
+```{r echo=FALSE}
+library(ggplot2)
+ggplot(fetal.test, aes(x=fetal_health))+
+  geom_bar(stat="count", width=0.7, fill="hotpink")+
+  theme_minimal()
+```
+
+
+
+## 1)Klasik Karar Ağacı
+
+
+
+```{r echo=FALSE, fig.align='center', out.width='100%'}
+knitr::include_graphics('C:/Users/yasem/OneDrive/Masaüstü/1.gif')
+
+```
+
+
+
+```{r}
+tree.fetal=tree(fetal_health~.,yeniveri,subset=train)
+summary(tree.fetal)
+```
+
+
+**Sonuçlardan ağacın inşaasında kullanılan değişkenler görülmektedir.**
+
+**Terminal node sayısı: 9 dur.**
+
+**Deviance ölçütü değeri:0.1282 dir.**
+
+**Yanlış sınıflandırma oranı:0.03556 dir.**
+
+```{r}
+
+plot(tree.fetal);text(tree.fetal,pretty=0)
+tree.pred=predict(tree.fetal,fetal.test,type="class")
+
+```
+
+```{r}
+cm <- caret::confusionMatrix(table(tree.pred,health.test))
+cm
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+draw_confusion_matrix <- function(cm) {
+layout(matrix(c(1,1,2)))
+par(mar=c(2,2,2,2))
+plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+title('Confusion Matrix', cex.main = 2)
+rect(150, 430, 240, 370, col = 'deeppink')
+text(195, 435, 'Hasta', cex = 1.2)
+rect(250, 430, 340, 370, col = 'palegreen')
+text(295, 435, 'Normal', cex = 1.2)
+text(125, 370, 'Predicted', cex = 1.3, srt = 90, font = 2)
+text(245, 450, 'Actual', cex=1.3, font=2)
+rect(150, 305, 240, 365, col = 'palegreen')
+rect(250, 305, 340, 365, col = 'deeppink')
+text(140, 400, 'Hasta', cex = 1.2, srt = 90)
+text(140, 335, 'Normal', cex = 1.2, srt = 90)
+res <- as.numeric(cm$table)
+text(195, 400, res[1], cex = 1.6, font = 2, col = 'white')
+text(195, 335, res[2], cex = 1.6, font = 2, col = 'black')
+text(295, 400, res[3], cex = 1.6, font = 2, col = 'black')
+text(295, 335, res[4], cex = 1.6, font = 2, col = 'white')
+plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt = 'n', yaxt = 'n')
+text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+3
+text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+text(70, 35, names(cm$overall[2]), cex=1.2, font=2)
+text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}
+draw_confusion_matrix(cm)
+```
+
+**Modelin test seti üzerindeki doğruluk oranı 0.96 dır.**
+
+
+
+```{r echo=FALSE}
+library(rpart)
+library(rpart.plot)
+fit <- rpart(fetal_health~., data = yeniveri,subset = train)
+rpart.plot(fit, extra = 104)
+```
+
+Aynı modeli rpart paketi ile kurduğumda ortaya çıkan ağaç bu şekildedir.
+
+
+## 2)BUDANMIŞ KARAR AĞACI
+
+Model tahminlerinin varyansını düşürmek ve daha az komplex bir ağaçla çalışmak amacıyla pruning(budama) yapılır.
+
+```{r}
+set.seed(400)
+cv.fetal=cv.tree(tree.fetal,FUN=prune.misclass)
+cv.fetal
+plot(cv.fetal)
+
+
+
+```
+
+**Misclassification'ın en düşük değeri size 5 de elde edilmiştir.**
+
+```{r}
+prune.fetal=prune.misclass(tree.fetal,best=5)
+plot(prune.fetal);text(prune.fetal,pretty=0)
+prune.fetal.pred=predict(prune.fetal,fetal.test,type="class")
+```
+Bu budanmış ağacın tahmin performansını inceleyelim.
+
+```{r}
+cm <- caret::confusionMatrix(table(prune.fetal.pred,health.test))
+```
+
+
+ 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+draw_confusion_matrix <- function(cm) {
+layout(matrix(c(1,1,2)))
+par(mar=c(2,2,2,2))
+plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+title('Confusion Matrix', cex.main = 2)
+rect(150, 430, 240, 370, col = 'royalblue')
+text(195, 435, 'Hasta', cex = 1.2)
+rect(250, 430, 340, 370, col = 'turquoise')
+text(295, 435, 'Normal', cex = 1.2)
+text(125, 370, 'Predicted', cex = 1.3, srt = 90, font = 2)
+text(245, 450, 'Actual', cex=1.3, font=2)
+rect(150, 305, 240, 365, col = 'turquoise')
+rect(250, 305, 340, 365, col = 'royalblue')
+text(140, 400, 'Hasta', cex = 1.2, srt = 90)
+text(140, 335, 'Normal', cex = 1.2, srt = 90)
+res <- as.numeric(cm$table)
+text(195, 400, res[1], cex = 1.6, font = 2, col = 'white')
+text(195, 335, res[2], cex = 1.6, font = 2, col = 'black')
+text(295, 400, res[3], cex = 1.6, font = 2, col = 'black')
+text(295, 335, res[4], cex = 1.6, font = 2, col = 'white')
+plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt = 'n', yaxt = 'n')
+text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+3
+text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+text(70, 35, names(cm$overall[2]), cex=1.2, font=2)
+text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}
+draw_confusion_matrix(cm)
+```
+
+
+Tahmin performansı artmıştır ve yorumlanması daha kolay bir ağacımız olmuştur.
+
+
+
+## 3)BAGGING
+
+
+
+```{r echo=FALSE, fig.align='center', out.width='140%'}
+knitr::include_graphics('C:/Users/yasem/OneDrive/Masaüstü/baggingboosting.png')
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+set.seed(500)
+train=yeniveri[train,]
+Bagging1=randomForest(fetal_health~., data=train, mtry=22, importance=TRUE)
+Bagging1
+
+```
+
+Test seti üzerindeki tahmin performansını inceleyelim.
+
+```{r}
+pred=predict(Bagging1,fetal.test,type="class")
+cm <- caret::confusionMatrix(table(fetal.test$fetal_health, pred))
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+draw_confusion_matrix <- function(cm) {
+layout(matrix(c(1,1,2)))
+par(mar=c(2,2,2,2))
+plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+title('Confusion Matrix', cex.main = 2)
+rect(150, 430, 240, 370, col = 'hotpink')
+text(195, 435, 'Hasta', cex = 1.2)
+rect(250, 430, 340, 370, col = 'aquamarine')
+text(295, 435, 'Normal', cex = 1.2)
+text(125, 370, 'Predicted', cex = 1.3, srt = 90, font = 2)
+text(245, 450, 'Actual', cex=1.3, font=2)
+rect(150, 305, 240, 365, col = 'aquamarine')
+rect(250, 305, 340, 365, col = 'hotpink')
+text(140, 400, 'Hasta', cex = 1.2, srt = 90)
+text(140, 335, 'Normal', cex = 1.2, srt = 90)
+res <- as.numeric(cm$table)
+text(195, 400, res[1], cex = 1.6, font = 2, col = 'white')
+text(195, 335, res[2], cex = 1.6, font = 2, col = 'black')
+text(295, 400, res[3], cex = 1.6, font = 2, col = 'black')
+text(295, 335, res[4], cex = 1.6, font = 2, col = 'white')
+plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt = 'n', yaxt = 'n')
+text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+3
+text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+text(70, 35, names(cm$overall[2]), cex=1.2, font=2)
+text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}
+draw_confusion_matrix(cm)
+```
+
+Bagging modelinin doğru tahmin oranı yüzde 96 dir.
+
+Şimdi outof bag error grafiğini çizdirelim.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+oob.err.data <- data.frame(
+  Trees = rep(1:nrow(Bagging1$err.rate), 3), 
+  Type = rep(c("OOB","Normal","Hasta"), each = nrow(Bagging1$err.rate)),
+  Error = c(Bagging1$err.rate[,"OOB"],Bagging1$err.rate[,"normal"], Bagging1$err.rate[,"hasta"]))
+ggplot(data = oob.err.data, aes(x = Trees, y= Error)) + geom_line(aes(color = Type))
+```
+
+50 ağaç öncesinde error değerleri düşüktür.
+
+500 ağaç ile kurulan modelin error değeri:
+
+```{r}
+oob.err.data[500,]
+```
+
+İlk 50 ağaç için error değerlerini incelemek istiyorum.
+
+```{r}
+head(oob.err.data,50)
+```
+
+**26 ağaç yeterli gözükmektedir.ntree=26 alarak deneyelim.**
+
+## 4)26 Bootstrap sample
+
+```{r message=FALSE, warning=FALSE}
+set.seed(500)
+Bagging2=randomForest(fetal_health~., data=train, mtry=22, ntree=26, importance=TRUE)
+Bagging2
+```
+
+
+```{r}
+pred=predict(Bagging2,fetal.test,type="class")
+cm <- caret::confusionMatrix(table(fetal.test$fetal_health, pred))
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+draw_confusion_matrix <- function(cm) {
+layout(matrix(c(1,1,2)))
+par(mar=c(2,2,2,2))
+plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+title('Confusion Matrix', cex.main = 2)
+rect(150, 430, 240, 370, col = 'lightslateblue')
+text(195, 435, 'Hasta', cex = 1.2)
+rect(250, 430, 340, 370, col = 'lightseagreen')
+text(295, 435, 'Normal', cex = 1.2)
+text(125, 370, 'Predicted', cex = 1.3, srt = 90, font = 2)
+text(245, 450, 'Actual', cex=1.3, font=2)
+rect(150, 305, 240, 365, col = 'lightseagreen')
+rect(250, 305, 340, 365, col = 'lightslateblue')
+text(140, 400, 'Hasta', cex = 1.2, srt = 90)
+text(140, 335, 'Normal', cex = 1.2, srt = 90)
+res <- as.numeric(cm$table)
+text(195, 400, res[1], cex = 1.6, font = 2, col = 'white')
+text(195, 335, res[2], cex = 1.6, font = 2, col = 'black')
+text(295, 400, res[3], cex = 1.6, font = 2, col = 'black')
+text(295, 335, res[4], cex = 1.6, font = 2, col = 'white')
+plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt = 'n', yaxt = 'n')
+text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+3
+text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+text(70, 35, names(cm$overall[2]), cex=1.2, font=2)
+text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}
+draw_confusion_matrix(cm)
+```
+
+Doğru tahmin oranı 0.947 olmuştur.500 ağaçla kurulan modelde tahmin performansı 0.96 bulunmuştu.Tahmin performansı düşmüştür.
+
+
+## 5)RANDOM FOREST
+
+
+```{r echo=FALSE, fig.align='center', out.width='140%'}
+knitr::include_graphics('C:/Users/yasem/OneDrive/Masaüstü/resim5.png')
+
+```
+
+
+
+```{r}
+set.seed(500)
+Randomforest1=randomForest(fetal_health~., data=train, mtry=4, importance=TRUE)
+Randomforest1
+```
+
+```{r}
+pred=predict(Randomforest1,fetal.test,type="class")
+cm <- caret::confusionMatrix(table(fetal.test$fetal_health, pred))
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+draw_confusion_matrix <- function(cm) {
+layout(matrix(c(1,1,2)))
+par(mar=c(2,2,2,2))
+plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+title('Confusion Matrix', cex.main = 2)
+rect(150, 430, 240, 370, col = 'blueviolet')
+text(195, 435, 'Hasta', cex = 1.2)
+rect(250, 430, 340, 370, col = 'cyan')
+text(295, 435, 'Normal', cex = 1.2)
+text(125, 370, 'Predicted', cex = 1.3, srt = 90, font = 2)
+text(245, 450, 'Actual', cex=1.3, font=2)
+rect(150, 305, 240, 365, col = 'cyan')
+rect(250, 305, 340, 365, col = 'blueviolet')
+text(140, 400, 'Hasta', cex = 1.2, srt = 90)
+text(140, 335, 'Normal', cex = 1.2, srt = 90)
+res <- as.numeric(cm$table)
+text(195, 400, res[1], cex = 1.6, font = 2, col = 'white')
+text(195, 335, res[2], cex = 1.6, font = 2, col = 'black')
+text(295, 400, res[3], cex = 1.6, font = 2, col = 'black')
+text(295, 335, res[4], cex = 1.6, font = 2, col = 'white')
+plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt = 'n', yaxt = 'n')
+text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+3
+text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+text(70, 35, names(cm$overall[2]), cex=1.2, font=2)
+text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}
+draw_confusion_matrix(cm)
+```
+
+
+
+**Doğru tahmin oranı 0.987'dir.**
+
+
+
+## 6)BOOSTING
+
+
+
+```{r message=FALSE, warning=FALSE}
+library(gbm)
+set.seed(500)
+boosting1=gbm((unclass(fetal_health)-1) ~ ., data=train,
+                    distribution="bernoulli",
+                    n.trees=5000,
+                    interaction.depth=4,
+                    verbose = F)
+summary(boosting1)
+```
+
+"abnormal_short_term_variability" en önemli değişkendir.Ardından "histogram_mean" değişkeni gelmektedir.
+
+```{r}
+pred = predict.gbm(object = boosting1,
+                   newdata = fetal.test,
+                   n.trees = 200,
+                   type = "response")
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+pred=predict(boosting1,fetal.test,type="response")
+pred<-ifelse(pred>0.5,"normal","hasta")
+table(pred,fetal.test$fetal_health)
+
+```
+
+```{r}
+cm <- caret::confusionMatrix(table(pred,fetal.test$fetal_health))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+draw_confusion_matrix <- function(cm) {
+layout(matrix(c(1,1,2)))
+par(mar=c(2,2,2,2))
+plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+title('Confusion Matrix', cex.main = 2)
+rect(150, 430, 240, 370, col = 'mediumpurple')
+text(195, 435, 'Hasta', cex = 1.2)
+rect(250, 430, 340, 370, col = 'khaki1')
+text(295, 435, 'Normal', cex = 1.2)
+text(125, 370, 'Predicted', cex = 1.3, srt = 90, font = 2)
+text(245, 450, 'Actual', cex=1.3, font=2)
+rect(150, 305, 240, 365, col = 'khaki1')
+rect(250, 305, 340, 365, col = 'mediumpurple')
+text(140, 400, 'Hasta', cex = 1.2, srt = 90)
+text(140, 335, 'Normal', cex = 1.2, srt = 90)
+res <- as.numeric(cm$table)
+text(195, 400, res[1], cex = 1.6, font = 2, col = 'white')
+text(195, 335, res[2], cex = 1.6, font = 2, col = 'black')
+text(295, 400, res[3], cex = 1.6, font = 2, col = 'black')
+text(295, 335, res[4], cex = 1.6, font = 2, col = 'white')
+plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt = 'n', yaxt = 'n')
+text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+3
+text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+text(70, 35, names(cm$overall[2]), cex=1.2, font=2)
+text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}
+draw_confusion_matrix(cm)
+```
+
+**Doğru tahmin oranı yaklaşık %95 tir.
+
+
+## 7)Lojistik Regresyon
+
+
+```{r,warning=FALSE,message=FALSE}
+mod <- glm(fetal_health ~ ., data=train, family=binomial)
+
+```
+
+
+
+```{r}
+fetal.test=fetal.test%>% mutate(fetal_health= case_when(fetal_health=="normal"~1,
+fetal_health=="hasta"~0))
+
+fetal.test$fetal_health=as.factor(fetal.test$fetal_health)
+
+train=train%>% mutate(fetal_health= case_when(fetal_health=="normal"~1,
+fetal_health=="hasta"~0))
+
+train$fetal_health=as.factor(train$fetal_health)
+
+```
+
+Test verisi için tahminlerimizi elde edelim.
+
+```{r,warning=FALSE,message=FALSE}
+predicted <- predict(mod, fetal.test, type="response")  # predicted scores
+pred<-ifelse(predicted>0.5,"1","0")
+table(pred,fetal.test$fetal_health)
+misClassError(fetal.test$fetal_health, predicted , threshold = 0.5)
+
+(29+38)/(75)
+```
+
+```{r}
+cm <- caret::confusionMatrix(table(pred,fetal.test$fetal_health))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+draw_confusion_matrix <- function(cm) {
+layout(matrix(c(1,1,2)))
+par(mar=c(2,2,2,2))
+plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+title('Confusion Matrix', cex.main = 2)
+rect(150, 430, 240, 370, col = 'maroon')
+text(195, 435, 'Hasta', cex = 1.2)
+rect(250, 430, 340, 370, col = 'pink')
+text(295, 435, 'Normal', cex = 1.2)
+text(125, 370, 'Predicted', cex = 1.3, srt = 90, font = 2)
+text(245, 450, 'Actual', cex=1.3, font=2)
+rect(150, 305, 240, 365, col = 'pink')
+rect(250, 305, 340, 365, col = 'maroon')
+text(140, 400, 'Hasta', cex = 1.2, srt = 90)
+text(140, 335, 'Normal', cex = 1.2, srt = 90)
+res <- as.numeric(cm$table)
+text(195, 400, res[1], cex = 1.6, font = 2, col = 'white')
+text(195, 335, res[2], cex = 1.6, font = 2, col = 'black')
+text(295, 400, res[3], cex = 1.6, font = 2, col = 'black')
+text(295, 335, res[4], cex = 1.6, font = 2, col = 'white')
+plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt = 'n', yaxt = 'n')
+text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+3
+text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+text(70, 35, names(cm$overall[2]), cex=1.2, font=2)
+text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}
+draw_confusion_matrix(cm)
+```
+
+**Doğru tahmin oranı 0.893 bulunmuştur**
+
+
+##Optimum Cutoff
+
+```{r,warning=FALSE,message=FALSE}
+library(InformationValue)
+predictions<-predict(mod,type="response")
+optCutOff <- optimalCutoff(train$fetal_health, predictions)[1] 
+optCutOff 
+```
+
+Train set için elde edilen cutoff değeri 0.01 bulunmuştur.
+
+
+**ROC**
+
+ROC curve altında kalan alan ne kadar büyük ise model o kadar iyidir.
+
+```{r message=FALSE, r,warning=FALSE}
+plotROC(fetal.test$fetal_health, predicted)
+```
+
+
+
+**Concordance**
+
+Eğer gerçekte 1 olarak etiketli olanlara karşılık tahmin edilen olasılık değerlerinin hepsi sıfır olarak etiketli olanlar için tahmin edilenlerden daha yüksek ise concordance 1 dir ve model iyi bir modeldir. Genel olarak concordance 1 olarak etiketli olan gözlemlere karşılık tahmin edilen olasılık değerlerinin sıfır olarak kodlu olanlara karşılık tahmin edilenlerin hepsinden yüksek olarak tahmin edilenlerinin oranını verir. Bu oran nekadar yüksek ise model o kadar iyi ayrıştırma yapıyor demektir.
+
+```{r,warning=FALSE,message=FALSE}
+Concordance(fetal.test$fetal_health, predicted)$Concordance
+```
+Modelde multicollinearity söz konusu ise bu modelin tahmin performansını etkiler. Bunu da vif komutu ile inceleyebiliriz.
+```{r message=FALSE, warning=FALSE}
+mod <- glm(fetal_health ~ .-histogram_width , data=train, family=binomial)
+```
+
+
+```{r,warning=FALSE,message=FALSE}
+library(car)
+car::vif(mod)
+```
+VIF değerlerine bakıldığında birçok değişken için çoklu bağlantı problemi olduğu görülüyor.Bu durum lojistik regresyonda önemlidir ve düzeltilmesi gerekir.
+
+# 1.Soru sonuçları
+
+```{r echo=FALSE, fig.align='center', out.width='140%'}
+knitr::include_graphics('C:/Users/yasem/OneDrive/Masaüstü/tablo1.png')
+
+```
+
+
+Doğru tahmin oranı en iyi olan yöntem 0.987 ile Random Forest yöntemidir.Random Forest yöntemi aynı zamanda en iyi specificity değerine sahiptir.Sağlıklı olan bebekleri hatasız tahmin etmiştir.Doğru tahmin oranı Random Forest tan sonra en iyi olan yöntem Budanmış Karar Ağacı yöntemidir.
+
+Sensitivity değerine bakıldığında Budanmış Karar Ağacı ve Boosting yöntemi test seti üzerinde hatasız sonuç vermiştir.Yani Hasta olan bebekleri hatasız tahmin eden yöntemlerdir.
+
+Lojistik regresyon doğru tahmin oranı en düşük olan yöntemdir.
+
+# 2.SORU
+
+## Verinin Tanıtılması
+
+11 değişken ve 32686 gözlemden oluşan bir veridir.
+
+**Değişkenlerin tanıtılması**
+
+**1)** <span style='color:maroon'>**UNIXTime:** *Numara*
+
+**2)** <span style='color:maroon'>**Data:** *Tarih*
+
+**3)** <span style='color:maroon'>**Time:** *Saat*
+
+**4)** <span style='color:maroon'>**Radiation:** *Güneş radyasyonu(metre başına watt ^ 2)*
+
+**5)** <span style='color:maroon'>**Temperature:** *Sıcaklık (Fahrenheit derece)*
+
+**6)** <span style='color:maroon'>**Pressure:** *Barometrik basınç(Hg)*
+
+**7)** <span style='color:maroon'>**Humidity:** *Nem(yüzde)*
+
+**8)** <span style='color:maroon'>**WindDirection.Degrees.:** *Rüzgar yönü(derece)*
+
+**9)** <span style='color:maroon'>**Speed:** *Rüzgar hızı(saatte mil)*
+
+**10)** <span style='color:maroon'>**TimeSunRise:** *Gün doğumu (Hawaii saati)*
+
+**11)** <span style='color:maroon'>**TimeSunSet:** *gün batımı(Hawaii saati)*
+
+
+<span style='color:maroon'>**Sıcaklık,Basınç,Nem,Rüzgar Yönü,Rüzgar Hızı değişkenleri kullanılarak RADYASYON tahmin edilecektir.**
+
+```{r echo=FALSE}
+Solar<-read.csv(file='C:/Users/yasem/OneDrive/Masaüstü/SolarPrediction.csv',
+header=TRUE,sep=",")
+knitr::kable(head(Solar), caption = "Solar")
+```
+
+
+
+```{r}
+Solar=Solar%>%dplyr::select("Radiation","Temperature","Pressure","Humidity","WindDirection.Degrees.","Speed")
+Solar$Temperature=as.numeric(Solar$Temperature)
+Solar$Humidity=as.numeric(Solar$Humidity)
+
+str(Solar)
+```
+
+```{r echo=FALSE}
+missmap(Solar,col=c("indianred3","steelblue3"),main="Değişkenlerde Eksik Gözlem Var Mı?",
+       x.cex=0.7,y.cex=0.3)
+```
+
+Veride eksik gözlem yoktur.
+
+```{r echo=FALSE}
+plot_histogram(Solar) 
+```
+
+```{r}
+dim(Solar)
+```
+
+Çok fazla gözlem var.Bu gözlemlerin ilk 1500 tanesini alıp veriyi yeniden oluşturuyorum.
+
+
+```{r}
+Solar=Solar[1:1500,]
+1500*75/100 #train set olarak alınacak.
+```
+
+
+## 1)Klasik Yöntem
+
+```{r}
+set.seed(300)
+train = sample(1:nrow(Solar),1125) #%75 train
+tree.Solar=tree(Radiation~.,Solar,subset=train) #%25 test
+summary(tree.Solar)
+plot(tree.Solar)
+text(tree.Solar,pretty=0)
+```
+
+Ağacı budamaya gerek olup olmadığını inceleyim.
+
+```{r}
+cv.Solar=cv.tree(tree.Solar,method="deviance")
+plot(cv.Solar$size,cv.Solar$dev,type='b')
+```
+
+Ağacı budamaya gerek yoktur.
+
+
+```{r}
+yhat=predict(tree.Solar,newdata=Solar[-train,])
+Solar.test=Solar[-train,"Radiation"]
+plot(yhat,Solar.test)
+abline(0,1)
+mean((yhat-Solar.test)^2)
+```
+
+## 2)Bagging
+
+
+Eğer mtray=p alırsak bagging yapmış oluruz. Default bootstrap sample sayısı 500 dür.Default taki gibi çalıştıralım.
+
+```{r message=FALSE, warning=FALSE}
+set.seed(100)
+bag.Solar=randomForest(Radiation~.,data=Solar,subset=train,mtry=6,importance=TRUE)
+bag.Solar
+yhat.bag = predict(bag.Solar,newdata=Solar[-train,])
+plot(yhat.bag,Solar.test)
+abline(0,1)
+```
+
+MSE değeri 11364 bulunmuştur ve toplam varyansın %91.67 sini açıklamaktadır. Bu MSE ve Explained Variance değerleri out of bag error değerleri kullanılarak elde edilmiştir. Çizilen saçılım grafiğinden tahmin performansının tek bir ağaç ile elde edilen modele göre çok daha iyi olduğu anlaşılmaktadır.
+
+
+```{r}
+mean((yhat.bag-Solar.test)^2)
+```
+
+Şimdi outof bag error grafiğini çizdirelim.
+
+```{r}
+plot(bag.Solar)
+
+```
+
+Görüldüğü gibi 200 civarından sonra  MSE değerleri çok büyük bir değişkenlik göstermemektedir. İlk 200 değere bakacak olursak bunu görebiliriz.
+
+```{r}
+head(bag.Solar$mse,200)
+```
+
+## 3)47 Bootstrap Sample
+
+Bakıldığında 47 den sonra fazla değişim olmadığı görülmektedir.Şimdi ntree 47 için  deneyelim.
+
+```{r message=FALSE, warning=FALSE}
+bag.Solar=randomForest(Radiation~.,data=Solar,subset=train,mtry=6,ntree=47)
+yhat.bag = predict(bag.Solar,newdata=Solar[-train,])
+mean((yhat.bag-Solar.test)^2)
+```
+
+
+mse değerinde artış olmuştur.Ağacımız daha sadedir fakat tahmin performansı düşmüştür.
+
+
+## 4)RANDOM FOREST
+
+
+```{r echo=FALSE, fig.align='center', out.width='140%'}
+knitr::include_graphics('C:/Users/yasem/OneDrive/Masaüstü/randomf1.jpg')
+
+```
+
+mtry=karekök p alınarak random forest yapılır.
+
+```{r}
+set.seed(1)
+rf.Solar=randomForest(Radiation~.,data=Solar,subset=train,mtry=2,importance=TRUE)
+yhat.rf = predict(rf.Solar,newdata=Solar[-train,])
+mean((yhat.rf-Solar.test)^2)
+```
+
+Görüldüğü üzere test verisi üzerinde hesaplanan MSE değeri düşmüştür. Şimdi farklı mtray değerleri için outof bag mse değerleri ile test verisi mse değerlerini karşılaştıralım. 
+
+```{r message=FALSE, warning=FALSE}
+oob.err<-double(6)
+test.err<-double(6)
+
+#mtry is no of Variables randomly chosen at each split
+for(mtry in 1:6) 
+{
+  rf=randomForest(Radiation ~ . , data = Solar , subset = train,mtry=mtry,ntree=500) 
+  oob.err[mtry] = rf$mse[500] #Error of all Trees fitted
+  
+  pred<-predict(rf,Solar[-train,]) #Predictions on Test Set for each Tree
+  test.err[mtry]= with(Solar[-train,], mean( (Radiation - pred)^2)) #Mean Squared Test Error
+  
+  cat(mtry," ")
+  
+}
+
+```
+
+```{r}
+matplot(1:mtry , cbind(oob.err,test.err), pch=19 , col=c("red","blue"),type="b",ylab="Mean Squared Error",xlab="Number of Predictors Considered at each Split")
+legend("topright",legend=c("Out of Bag Error","Test Error"),pch=19, col=c("red","blue"))
+```
+
+Bu grafikten test seti için mtray=2 alınmasının daha uygun olduğu görünüyor. mtray=2 için hesaplanan test verisi mse değeri 
+ 
+```{r}
+test.err[2]
+```
+
+Değişkenlerin önemliliklerini inceleyelim.
+
+```{r}
+importance(rf.Solar)
+varImpPlot(rf.Solar)
+```
+
+Sıcaklığın en önemli değişken olduğu görülmektedir.
+
+## 5)Boosting
+
+
+```{r}
+set.seed(500)
+boost.Solar=gbm(Radiation~.,data=Solar[train,],distribution="gaussian",n.trees=5000,interaction.depth=4)
+summary(boost.Solar)
+```
+
+En önemli değişkenin sıcaklık değişkeni olduğu anlaşılmaktadır.Daha sonra ise rüzgar yönü değişkeni gelmektedir.İkisinin grafiklerini inceleyelim.
+
+
+```{r}
+plot(boost.Solar,i="Temperature")
+```
+```{r}
+plot(boost.Solar,i="WindDirection.Degrees.")
+```
+
+Şimdi modelin test verisi üzerindeki performansını inceleyelim.
+
+```{r}
+yhat.boost=predict(boost.Solar,newdata=Solar[-train,],n.trees=5000)
+mean((yhat.boost-Solar.test)^2)
+```
+
+# 2. Soru sonuçları
+
+```{r echo=FALSE, fig.align='center', out.width='140%'}
+knitr::include_graphics('C:/Users/yasem/OneDrive/Masaüstü/Tablo2.png')
+
+```
+
+MSE Değerinin düşük olması tahmin performansının iyi olduğu anlamına gelmektedir.Bu durumda tahmin performansı en iyi olan yöntem Random Forest yöntemi olmuştur.Tahmin performansı en kötü olan yöntem ise Klasik yöntem olmuştur.Random Foresttan sonra en iyi tahmin performansı Bagging yöntemindedir.
+
+
+# 3.SORU
+
+Veri ülkelere ait bazı bilgileri içermektedir.
+
+**Değişkenler**
+
+**1)** <span style='color:maroon'>**country:** *Ülkenin adı*
+
+**2)** <span style='color:maroon'>**child_mort:** *1000 canlı doğumda 5 yaşın altındaki çocukların ölümü*
+
+**3)** <span style='color:maroon'>**exports:** *Kişi başına mal ve hizmet ihracatı. Kişi başına düşen GSYİH'nin % si olarak verilir.*
+
+**4)** <span style='color:maroon'>**health:** *Kişi başına toplam sağlık harcaması. Kişi başına düşen GSYİH'nın % si olarak verilir.*
+
+**5)** <span style='color:maroon'>**imports:** *Kişi başına mal ve hizmet ithalatı. Kişi başına düşen GSYİH'nin % si olarak verilir.*
+
+**6)** <span style='color:maroon'>**income:** *Kişi başına net gelir*
+
+**7)** <span style='color:maroon'>**inflation:** *Toplam GSYİH'nin yıllık büyüme oranının ölçümü*
+
+**8)** <span style='color:maroon'>**life_expec:** *Mevcut ölüm oranları aynı kalacaksa, yeni doğan bir çocuğun yaşayacağı ortalama yıl sayısı*
+
+**9)** <span style='color:maroon'>**total_fer:** *Mevcut yaş-doğurganlık oranları aynı kalırsa her kadının doğacağı çocuk sayısı.*
+
+**10)** <span style='color:maroon'>**gdpp:** *Kişi başına düşen GSYİH. Toplam GSYİH'nin toplam nüfusa bölünmesiyle hesaplanır.*
+
+```{r echo=FALSE}
+Country<-read.csv(file='C:/Users/yasem/OneDrive/Masaüstü/Country-data.csv',
+header=TRUE,sep=",")
+knitr::kable(head(Country), caption = "Country")
+```
+
+```{r echo=FALSE}
+missmap(Country,col=c("indianred3","steelblue3"),main="Değişkenlerde Eksik Gözlem Var Mı?",
+       x.cex=0.7,y.cex=0.3)
+```
+
+Veride eksik gözlem yoktur.
+
+
+```{r}
+dim(Country)
+```
+
+## K-means-clustring
+
+
+```{r echo=FALSE, fig.align='center', out.width='140%'}
+knitr::include_graphics('C:/Users/yasem/OneDrive/Masaüstü/kmeans.png')
+
+```
+
+```{r}
+Country=Country%>%select(-c(country))
+summary(Country)
+```
+
+Özet istatistiklerden verilerin büyük değerlere sahip olduğu görülüyor. K ortalama ve mesafe hesaplamasıyla ilgili iyi bir uygulama, ortalama bire eşit ve standart sapma sıfıra eşit olacak şekilde verileri yeniden ölçeklendirmektir.
+
+
+```{r}
+library(dplyr)
+rescale_df <- Country %>%
+mutate(child_mort_scal = scale(child_mort),
+    exports_scal = scale(exports),
+    health_scal = scale(health),
+    imports_scal = scale(imports),
+    income_scal = scale(income),
+    inflation_scal = scale(inflation),
+    life_expec_scal = scale(life_expec),
+    total_fer_scal = scale(total_fer),
+    gdpp_scal = scale(gdpp)) %>%
+  select(-c(child_mort, exports, health, imports, income, inflation,life_expec,total_fer,gdpp))
+```
+
+```{r}
+head(rescale_df)
+```
+
+
+Veri setimizde k-ortalama algoritmasını beş küme ile çalıştırıp ve ona pc_cluster diyelim.
+
+```{r}
+pc_cluster <-kmeans(rescale_df, 5)
+pc_cluster
+```
+
+
+**Pc_cluster listesi yedi ilginç öğe içerir:**
+
+**pc_cluster $ cluster: Her gözlemin kümesini gösterir**
+
+**pc_cluster $ centers: Küme merkezleri**
+
+**pc_cluster $ totss: Kareler Toplamı (Gözlemlerin genel ortalamadan uzaklıklarının kareleri toplamı)ANOVA daki SST gibi**
+
+**pc_cluster $ withinss: Grup içi kareler toplamları**
+
+**pc_cluster $ tot.withinss: Grup içi kareler toplamlarının toplamı**
+
+**pc_clusterbetweenss: pc_cluster $ totss-pc_cluster $ tot.withinss**
+
+**pc_cluster $ size: Her bir küme içindeki gözlem sayısı**
+
+
+Optimal küme sayısını hesaplamak için Grup içi kareler toplamlarının toplamını (yani tot.withinss) kullanılabilir. K'yi bulmak gerçekten önemli bir konudur.
+
+
+
+```{r}
+kmean_withinss <- function(k) {
+    cluster <- kmeans(rescale_df, k)
+    return (cluster$tot.withinss)
+}
+# maksimum küme ayarlamak
+max_k <-20 
+set.seed(100)
+# k aralığında algoritma
+wss <- sapply(2:max_k, kmean_withinss)
+
+```
+
+
+```{r}
+# grafik çizmek için veri çerçevesi
+elbow <-data.frame(2:max_k, wss)
+```
+
+```{r}
+
+# Plot the graph with gglop
+ggplot(elbow, aes(x = X2.max_k, y = wss)) +
+    geom_point() +
+    geom_line() +
+    scale_x_continuous(breaks = seq(1, 20, by = 1))
+```
+
+Grafikten optimal k'nin yedi olduğunu görebiliriz, burada k daki artışın etkisi azalmaya başlamıştır.
+
+**Kümenin incelenmesi**
+
+```{r}
+pc_cluster_2 <-kmeans(rescale_df, 7)
+pc_cluster_2$cluster
+pc_cluster_2$centers
+pc_cluster_2$size
+```
+
+
+```{r}
+kmeans <- eclust(rescale_df, "kmeans",nstart=25)
+# Gap statistic plot
+fviz_gap_stat(kmeans$gap_stat)
+# Silhouette plot
+fviz_silhouette(kmeans)
+```
+
+
+
+## Hierarchical clustring:
+
+```{r}
+head(Country)
+```
+
+
+
+```{r}
+hc<-hclust(dist(Country,method="euclidean"),method="ward.D2")
+hc
+
+```
+
+```{r}
+plot(hc,cex=0.7)
+
+```
+
+```{r}
+hc2<-hclust(dist(Country,method="euclidean"),method="single")
+plot(hc2,cex=0.7)
+
+```
+
+Alternatif olarak, agnes fonksiyonunu da kullanabiliriz. Bu fonksiyon çok benzer şekilde davranır; ancak,
+agnes fonksiyonu ile, bulunan kümeleme yapısının gücünü ölçen aglomeratif katsayıyı da elde edebilir (1’e
+yakın değerler güçlü kümeleme yapısını gösterir).
+
+
+```{r}
+hc3<-agnes(dist(Country,method="euclidean"), method = "single")
+pltree(hc3, cex = 0.6, main = "Dendrogram of agnes")
+
+
+```
+
+```{r}
+hc3$ac
+```
+
+Sonuç 1 e yakındır.Bu güçlü kümeleme göstergesidir.
+
+Linkage methodları karşılaştırmak için aglomeratif katsayıyı aşağıdaki gibi kullanabiliriz.
+
+```{r}
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+ac <- function(x) {
+agnes(dist(Country,method="euclidean"), method = x)$ac
+}
+map_dbl(m, ac)
+
+```
+
+
+Bu, daha güçlü kümeleme yapılarını tanımlayabilen belirli hiyerarşik kümeleme yöntemlerini bulmamızı
+sağlar. Burada Ward yönteminin değerlendirilen dört yöntemin en güçlü kümeleme yapısını belirlediğini
+görüyoruz.
+
+**Cutting Tree**
+
+Dendrograma kadar olan kesimin yüksekliği, elde edilen küme sayısını kontrol eder. K-ortalamalı kümelemede
+k ile aynı rolü oynar. Alt grupları (yani kümeleri) tanımlamak için, dendrogramı cutree ile kesebiliriz:
+
+
+
+```{r}
+sub_grp <- cutree(hc, k = 4)
+table(sub_grp)
+```
+
+Sonucu bir dağılım grafiğinde görselleştirmek için factoextra paketindeki fviz_cluster fonksiyonunu da kullanabiliriz.
+
+
+```{r}
+
+fviz_cluster(list(data =Country, cluster = sub_grp))
+
+```
+
+Bu grafikten 4 küme yerine 3 küme kullanabileceğimiz sonucuna ulaşabiliriz.
+
+K-ortalamalı kümeleme ile optimum küme sayısını belirleme şeklimize benzer şekilde, hiyerarşik kümeleme
+için benzer yaklaşımları uygulayabiliriz:
+
+**Elbow Method**
+
+```{r}
+fviz_nbclust(Country, FUN = hcut, method = "wss")
+
+```
+
+**Average Silhouette Method**
+
+```{r}
+fviz_nbclust(Country, FUN = hcut, method = "silhouette")
+
+```
+
+
+**Gap Statistic Method**
+
+```{r}
+gap_stat <- clusGap(Country, FUN = hcut, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+```
+
+```{r}
+hclust <- eclust(Country, "hclust",nstart=25)
+fviz_dend(hclust,rect=TRUE)
+```
+
+```{r}
+fviz_silhouette(hclust) # silhouette plot
+```
+```{r}
+fviz_cluster(hclust) # scatter plot
+```
